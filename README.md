@@ -54,9 +54,9 @@ package main
 
 import (
 	"errors"
-	"storage/src/common"
-	"storage/src/service"
-	"storage/src/utils"
+	"github.com/szwtdl/simple-storage/storage/common"
+	"github.com/szwtdl/simple-storage/src/service"
+	"github.com/szwtdl/simple-storage/storage/utils"
 )
 
 func NewStorage(config common.Config) (common.Storage, error) {

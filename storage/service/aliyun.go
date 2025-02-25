@@ -2,7 +2,7 @@ package service
 
 import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
-	"github.com/szwtdl/simple-storage/src/common"
+	"github.com/szwtdl/simple-storage/storage/common"
 )
 
 type AliYun struct {

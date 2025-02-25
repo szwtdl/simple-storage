@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/szwtdl/simple-storage/src/common"
+	"github.com/szwtdl/simple-storage/storage/common"
 	"github.com/tencentyun/cos-go-sdk-v5"
 	"net/http"
 	"net/url"

@@ -6,6 +6,15 @@ type File struct {
 	Path string `json:"path"`
 }
 
+type OSSPolicy struct {
+	AccessKeyId string `json:"OSSAccessKeyId"`
+	Policy      string `json:"policy"`
+	Signature   string `json:"signature"`
+	Dir         string `json:"dir"`
+	Host        string `json:"host"`
+	Expire      int64  `json:"expire"`
+}
+
 type Config struct {
 	Provider string            // 云存储服务提供商: "aliyun", "tencent", "qiniu", "upyun"
 	System   map[string]string // 配置信息
@@ -14,6 +23,8 @@ type Config struct {
 type Storage interface {
 	List(prefix string, size int) ([]File, error)
 	Upload(local string, remote string) (bool, error)
+	Download(remote string, local string) (bool, error)
 	Delete(remote string) (bool, error)
 	Move(source string, target string) (bool, error)
+	Generate(uploadDir string) (OSSPolicy, error)
 }

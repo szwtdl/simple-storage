@@ -1,9 +1,13 @@
 package common
 
+import "mime/multipart"
+
 type File struct {
-	Name string `json:"name"`
-	Size int64  `json:"size"`
-	Path string `json:"path"`
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	Url      string `json:"url"`
+	Size     int64  `json:"size"`
+	Modified string `json:"modified"`
 }
 
 type OSSPolicy struct {
@@ -22,7 +26,7 @@ type Config struct {
 
 type Storage interface {
 	List(prefix string, size int) ([]File, error)
-	Upload(local string, remote string) (bool, error)
+	Upload(file multipart.File, remote string) (bool, error)
 	Download(remote string, local string) (bool, error)
 	Delete(remote string) (bool, error)
 	Move(source string, target string) (bool, error)

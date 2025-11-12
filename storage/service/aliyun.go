@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/szwtdl/simple-storage/storage/common"
+	"mime/multipart"
 	"strings"
 	"time"
 )
@@ -56,8 +57,8 @@ func (s AliYun) List(prefix string, size int) ([]common.File, error) {
 	return result, nil
 }
 
-func (s AliYun) Upload(local string, remote string) (bool, error) {
-	err := s.bucket.PutObjectFromFile(remote, local)
+func (s AliYun) Upload(file multipart.File, remote string) (bool, error) {
+	err := s.bucket.PutObject(remote, file)
 	if err != nil {
 		return false, err
 	}

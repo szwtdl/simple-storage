@@ -12,6 +12,15 @@ go get -u github.com/szwtdl/simple-storage
 
 ```bash
 
+
+    config := common.Config{
+		Provider: "local",
+		System: map[string]string{
+			"base_path":     "",
+			"base_url": "https://www.test.cn"
+		},
+	}
+
 	config := common.Config{
 		Provider: "aliyun",
 		System: map[string]string{

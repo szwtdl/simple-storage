@@ -6,7 +6,7 @@ require (
 	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/qiniu/go-sdk/v7 v7.25.4
-	github.com/tencentyun/cos-go-sdk-v5 v0.7.67
+	github.com/tencentyun/cos-go-sdk-v5 v0.7.70
 )
 
 require (

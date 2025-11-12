@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/szwtdl/simple-storage/storage/common"
 	"github.com/tencentyun/cos-go-sdk-v5"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"time"
@@ -57,8 +58,8 @@ func (s Tencent) List(prefix string, size int) ([]common.File, error) {
 	return result, nil
 }
 
-func (s Tencent) Upload(local string, remote string) (bool, error) {
-	_, err := s.client.Object.PutFromFile(context.Background(), remote, local, nil)
+func (s Tencent) Upload(file multipart.File, remote string) (bool, error) {
+	_, err := s.client.Object.Put(context.Background(), remote, file, nil)
 	if err != nil {
 		return false, err
 	}

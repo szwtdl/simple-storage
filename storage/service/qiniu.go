@@ -7,6 +7,7 @@ import (
 	"github.com/qiniu/go-sdk/v7/storage"
 	"github.com/szwtdl/simple-storage/storage/common"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"time"
@@ -68,15 +69,14 @@ func (s QiNiu) List(prefix string, size int) ([]common.File, error) {
 	return files, nil
 }
 
-func (s QiNiu) Upload(local string, remote string) (bool, error) {
+func (s QiNiu) Upload(file multipart.File, filename string) (bool, error) {
 	putPolicy := storage.PutPolicy{
 		Scope: s.bucket,
 	}
-	mac := qbox.NewMac(s.manager.Mac.AccessKey, string(s.manager.Mac.SecretKey))
-	upToken := putPolicy.UploadToken(mac)
+	upToken := putPolicy.UploadToken(s.mac)
 	ret := storage.PutRet{}
-	ctx := context.Background() // Create a non-nil context
-	err := s.uploader.PutFile(ctx, &ret, upToken, remote, local, nil)
+	ctx := context.Background()
+	err := s.uploader.Put(ctx, &ret, upToken, filename, file, -1, nil)
 	if err != nil {
 		return false, err
 	}

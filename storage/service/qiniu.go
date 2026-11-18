@@ -6,10 +6,8 @@ import (
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
 	"github.com/szwtdl/simple-storage/storage/common"
-	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -22,6 +20,10 @@ type QiNiu struct {
 }
 
 func NewQiNiu(config map[string]string) (*QiNiu, error) {
+	domain, err := httpsEndpoint(config["Domain"])
+	if err != nil {
+		return nil, err
+	}
 	mac := qbox.NewMac(config["AccessKey"], config["SecretKey"])
 	cfg := storage.Config{
 		Zone:          &storage.ZoneHuadong,
@@ -35,11 +37,14 @@ func NewQiNiu(config map[string]string) (*QiNiu, error) {
 		uploader: uploader,
 		manager:  manager,
 		mac:      mac, // 保存
-		domain:   config["Domain"],
+		domain:   domain,
 	}, nil
 }
 
 func (s QiNiu) List(prefix string, size int) ([]common.File, error) {
+	if err := validateListSize(size); err != nil {
+		return nil, err
+	}
 	var files []common.File
 	delimiter := "" // 用于分隔目录
 	marker := ""    // 初始标记为空
@@ -58,11 +63,17 @@ func (s QiNiu) List(prefix string, size int) ([]common.File, error) {
 		}
 
 		// 如果没有更多文件，结束循环
+		if len(files) >= size {
+			return files[:size], nil
+		}
 		if !hasNext {
 			break
 		}
 
 		// 更新标记，继续下一页
+		if nextMarker == "" || nextMarker == marker {
+			return nil, fmt.Errorf("storage list pagination did not advance")
+		}
 		marker = nextMarker
 	}
 
@@ -71,7 +82,9 @@ func (s QiNiu) List(prefix string, size int) ([]common.File, error) {
 
 func (s QiNiu) Upload(file multipart.File, filename string) (bool, error) {
 	putPolicy := storage.PutPolicy{
-		Scope: s.bucket,
+		Scope:      s.bucket + ":" + filename,
+		InsertOnly: 1,
+		FsizeLimit: defaultMaxUploadSize,
 	}
 	upToken := putPolicy.UploadToken(s.mac)
 	ret := storage.PutRet{}
@@ -86,7 +99,16 @@ func (s QiNiu) Upload(file multipart.File, filename string) (bool, error) {
 func (s QiNiu) Download(remote string, local string) (bool, error) {
 	expires := time.Now().Add(time.Hour).Unix()
 	privateUrl := storage.MakePrivateURL(s.mac, s.domain, remote, expires)
-	resp, err := http.Get(privateUrl)
+	client := &http.Client{
+		Timeout: 5 * time.Minute,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 || req.URL.Scheme != "https" || req.URL.Host != via[0].URL.Host {
+				return fmt.Errorf("unsafe storage download redirect")
+			}
+			return nil
+		},
+	}
+	resp, err := client.Get(privateUrl)
 	if err != nil {
 		return false, fmt.Errorf("download request failed: %w", err)
 	}
@@ -94,16 +116,7 @@ func (s QiNiu) Download(remote string, local string) (bool, error) {
 	if resp.StatusCode != http.StatusOK {
 		return false, fmt.Errorf("qiniu download failed, http status: %s", resp.Status)
 	}
-	file, err := os.Create(local)
-	if err != nil {
-		return false, fmt.Errorf("create file error: %w", err)
-	}
-	defer file.Close()
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		return false, fmt.Errorf("write file error: %w", err)
-	}
-	return true, nil
+	return saveDownload(local, resp.Body)
 }
 
 func (s QiNiu) Delete(remote string) (bool, error) {
@@ -115,7 +128,7 @@ func (s QiNiu) Delete(remote string) (bool, error) {
 }
 
 func (s QiNiu) Move(source string, target string) (bool, error) {
-	err := s.manager.Move(s.bucket, source, s.bucket, target, true)
+	err := s.manager.Move(s.bucket, source, s.bucket, target, false)
 	if err != nil {
 		return false, err
 	}
@@ -123,16 +136,24 @@ func (s QiNiu) Move(source string, target string) (bool, error) {
 }
 
 func (s QiNiu) Generate(uploadDir string) (common.OSSPolicy, error) {
+	dir, err := uploadPrefix(uploadDir)
+	if err != nil {
+		return common.OSSPolicy{}, err
+	}
+	expire := time.Now().Add(time.Hour).Unix()
 	putPolicy := storage.PutPolicy{
-		Scope: s.bucket,
+		Scope:           s.bucket + ":" + dir,
+		IsPrefixalScope: 1,
+		InsertOnly:      1,
+		Expires:         uint64(expire),
+		FsizeLimit:      defaultMaxUploadSize,
 	}
 	upToken := putPolicy.UploadToken(s.mac)
-	expire := time.Now().Add(time.Hour).Unix()
 	return common.OSSPolicy{
 		AccessKeyId: s.manager.Mac.AccessKey,
 		Policy:      upToken,
 		Signature:   "", // 七牛token没有单独signature，留空或自行处理
-		Dir:         uploadDir,
+		Dir:         dir,
 		Host:        s.domain,
 		Expire:      expire,
 	}, nil

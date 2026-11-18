@@ -3,6 +3,7 @@ package tests
 import (
 	"errors"
 	"github.com/szwtdl/simple-storage/storage/common"
+	"mime/multipart"
 	"testing"
 )
 
@@ -14,7 +15,7 @@ func (m *mockStorage) List(prefix string, size int) ([]common.File, error) {
 	return []common.File{}, nil
 }
 
-func (m *mockStorage) Upload(local string, remote string) (bool, error) {
+func (m *mockStorage) Upload(file multipart.File, remote string) (bool, error) {
 	return true, nil
 }
 

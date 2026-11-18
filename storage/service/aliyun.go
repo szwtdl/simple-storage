@@ -19,7 +19,11 @@ type AliYun struct {
 }
 
 func NewAliYun(config map[string]string) (*AliYun, error) {
-	client, err := oss.New(config["Endpoint"], config["AccessKey"], config["SecretKey"])
+	endpoint, err := httpsEndpoint(config["Endpoint"])
+	if err != nil {
+		return nil, err
+	}
+	client, err := oss.New(endpoint, config["AccessKey"], config["SecretKey"])
 	if err != nil {
 		return nil, err
 	}
@@ -31,6 +35,9 @@ func NewAliYun(config map[string]string) (*AliYun, error) {
 }
 
 func (s AliYun) List(prefix string, size int) ([]common.File, error) {
+	if err := validateListSize(size); err != nil {
+		return nil, err
+	}
 	marker := ""
 	var result []common.File
 	options := []oss.Option{
@@ -49,8 +56,14 @@ func (s AliYun) List(prefix string, size int) ([]common.File, error) {
 				Path: obj.Key,
 			})
 		}
+		if len(result) >= size {
+			return result[:size], nil
+		}
 		if !lsRes.IsTruncated {
 			break
+		}
+		if lsRes.NextMarker == "" || lsRes.NextMarker == marker {
+			return nil, fmt.Errorf("storage list pagination did not advance")
 		}
 		marker = lsRes.NextMarker
 	}
@@ -58,7 +71,7 @@ func (s AliYun) List(prefix string, size int) ([]common.File, error) {
 }
 
 func (s AliYun) Upload(file multipart.File, remote string) (bool, error) {
-	err := s.bucket.PutObject(remote, file)
+	err := s.bucket.PutObject(remote, file, oss.ForbidOverWrite(true))
 	if err != nil {
 		return false, err
 	}
@@ -66,7 +79,12 @@ func (s AliYun) Upload(file multipart.File, remote string) (bool, error) {
 }
 
 func (s AliYun) Download(remote string, local string) (bool, error) {
-	err := s.bucket.GetObjectToFile(remote, local)
+	body, err := s.bucket.GetObject(remote)
+	if err != nil {
+		return false, err
+	}
+	defer body.Close()
+	_, err = saveDownload(local, body)
 	if err != nil {
 		return false, err
 	}
@@ -82,7 +100,7 @@ func (s AliYun) Delete(remote string) (bool, error) {
 }
 
 func (s AliYun) Move(source string, target string) (bool, error) {
-	_, err := s.bucket.CopyObject(target, source)
+	_, err := s.bucket.CopyObject(source, target, oss.ForbidOverWrite(true))
 	if err != nil {
 		return false, err
 	}
@@ -94,13 +112,18 @@ func (s AliYun) Move(source string, target string) (bool, error) {
 }
 
 func (s AliYun) Generate(uploadDir string) (common.OSSPolicy, error) {
+	dir, err := uploadPrefix(uploadDir)
+	if err != nil {
+		return common.OSSPolicy{}, err
+	}
 	expireTime := time.Now().Add(10 * time.Minute).UTC()
 	expireISO := expireTime.Format("2006-01-02T15:04:05.000Z")
 	policy := map[string]interface{}{
 		"expiration": expireISO,
 		"conditions": []interface{}{
 			map[string]string{"bucket": s.bucket.BucketName},
-			[]interface{}{"starts-with", "$key", uploadDir},
+			map[string]string{"x-oss-forbid-overwrite": "true"},
+			[]interface{}{"starts-with", "$key", dir},
 			[]interface{}{"content-length-range", 0, 1 << 30}, // 最大 1GB
 		},
 	}
@@ -115,10 +138,11 @@ func (s AliYun) Generate(uploadDir string) (common.OSSPolicy, error) {
 	signature := base64.StdEncoding.EncodeToString(h.Sum(nil))
 	return common.OSSPolicy{
 		AccessKeyId: s.client.Config.AccessKeyID,
+		FormFields:  map[string]string{"x-oss-forbid-overwrite": "true"},
 		Policy:      policyBase64,
 		Signature:   signature,
-		Dir:         strings.Trim(uploadDir, "/"),
-		Host:        fmt.Sprintf("https://%s.%s", s.bucket.BucketName, s.client.Config.Endpoint),
+		Dir:         dir,
+		Host:        fmt.Sprintf("https://%s.%s", s.bucket.BucketName, strings.TrimPrefix(s.client.Config.Endpoint, "https://")),
 		Expire:      expireTime.Unix(),
 	}, nil
 }

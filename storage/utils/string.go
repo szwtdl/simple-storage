@@ -1,8 +1,9 @@
 package utils
 
 import (
+	"crypto/rand"
 	"github.com/google/uuid"
-	"math/rand"
+	"math/big"
 	"time"
 )
 
@@ -12,7 +13,11 @@ func RandomString(n int) string {
 	var letters = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 	result := make([]byte, n)
 	for i := range result {
-		result[i] = letters[rand.Intn(len(letters))]
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
+		if err != nil {
+			panic("secure random source unavailable")
+		}
+		result[i] = letters[index.Int64()]
 	}
 	return string(result)
 }

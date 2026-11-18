@@ -11,12 +11,13 @@ type File struct {
 }
 
 type OSSPolicy struct {
-	AccessKeyId string `json:"OSSAccessKeyId"`
-	Policy      string `json:"policy"`
-	Signature   string `json:"signature"`
-	Dir         string `json:"dir"`
-	Host        string `json:"host"`
-	Expire      int64  `json:"expire"`
+	AccessKeyId string            `json:"OSSAccessKeyId"`
+	Policy      string            `json:"policy"`
+	Signature   string            `json:"signature"`
+	Dir         string            `json:"dir"`
+	Host        string            `json:"host"`
+	Expire      int64             `json:"expire"`
+	FormFields  map[string]string `json:"form_fields,omitempty"` // 直传时必须一并提交的表单字段
 }
 
 type Config struct {
